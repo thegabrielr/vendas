@@ -207,7 +207,7 @@ if menu == "🛒 PDV":
             st.info("O carrinho está vazio.")
 
 # ===================================================================
-# 2. DASHBOARD - FILTRO DE DATA (VERSÃO CORRIGIDA E MAIS ESTÁVEL)
+# 2. DASHBOARD - VERSÃO RESPONSIVA (Melhor para Celular)
 # ===================================================================
 elif menu == "📊 Dashboard":
     st.header("📊 Resumo Financeiro Real")
@@ -215,12 +215,12 @@ elif menu == "📊 Dashboard":
     # ======================= FILTRO DE DATA =======================
     st.subheader("📅 Período do Relatório")
     
-    col1, col2, col3 = st.columns([2, 2, 1])
-    data_inicio = col1.date_input("Data Inicial", value=datetime.now().replace(day=1))
-    data_fim = col2.date_input("Data Final", value=datetime.now())
+    col_data1, col_data2, col_data3 = st.columns([2, 2, 1])
+    data_inicio = col_data1.date_input("Data Inicial", value=datetime.now().replace(day=1))
+    data_fim = col_data2.date_input("Data Final", value=datetime.now())
     
-    if col3.button("🔄 Todo o Período", use_container_width=True):
-        data_inicio = datetime(2020, 1, 1).date()   # data bem antiga
+    if col_data3.button("🔄 Todo Período", use_container_width=True):
+        data_inicio = datetime(2020, 1, 1).date()
         data_fim = datetime.now().date()
 
     conn = conectar()
@@ -228,16 +228,14 @@ elif menu == "📊 Dashboard":
     df_d = pd.read_sql("SELECT * FROM despesas", conn)
     conn.close()
 
-    # ======================= FILTRAGEM MAIS SEGURA =======================
+    # Filtragem (mantida igual)
     def filtrar_por_data(df, coluna_data):
         if df.empty:
             return df
-        # Tenta várias formas de converter a data
         try:
             df['data_obj'] = pd.to_datetime(df[coluna_data], format="%d/%m/%Y %H:%M", errors='coerce')
         except:
             df['data_obj'] = pd.to_datetime(df[coluna_data], errors='coerce')
-        
         df = df.dropna(subset=['data_obj'])
         df = df[(df['data_obj'].dt.date >= data_inicio) & 
                 (df['data_obj'].dt.date <= data_fim)]
@@ -249,25 +247,37 @@ elif menu == "📊 Dashboard":
     # ======================= CÁLCULOS =======================
     faturamento_bruto = df_v['valor_bruto'].sum() if not df_v.empty else 0.0
     total_descontos   = df_v['desconto'].sum() if not df_v.empty else 0.0
-    receita_liquida   = faturamento_bruto - total_descontos
-
     total_taxas_cartao = ((df_v['valor_bruto'] - df_v['desconto']) * 
                           (df_v['taxa_momento'] / 100)).sum() if not df_v.empty else 0.0
-
     total_despesas = df_d['valor'].sum() if not df_d.empty else 0.0
-    lucro_final = receita_liquida - total_taxas_cartao - total_despesas
+    lucro_final = (faturamento_bruto - total_descontos - total_taxas_cartao - total_despesas)
 
-    # ======================= MÉTRICAS =======================
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Faturamento Bruto", f"R$ {faturamento_bruto:,.2f}")
-    m2.metric("Descontos", f"- R$ {total_descontos:,.2f}", delta_color="inverse")
-    m3.metric("Taxas Cartão", f"- R$ {total_taxas_cartao:,.2f}", delta_color="inverse")
-    m4.metric("Despesas", f"- R$ {total_despesas:,.2f}", delta_color="inverse")
-    m5.metric("**Lucro Real**", f"R$ {lucro_final:,.2f}", delta_color="normal")
+    # ======================= MÉTRICAS VERTICAIS (Melhor para Celular) =======================
+    st.subheader("Resumo Financeiro")
+
+    # Usamos colunas simples, mas com layout mais vertical em telas pequenas
+    m1, m2 = st.columns(2)
+    m3, m4 = st.columns(2)
+    m5 = st.container()
+
+    with m1:
+        st.metric("Faturamento Bruto", f"R$ {faturamento_bruto:,.2f}")
+    with m2:
+        st.metric("Descontos", f"- R$ {total_descontos:,.2f}", delta_color="inverse")
+
+    with m3:
+        st.metric("Taxas Cartão", f"- R$ {total_taxas_cartao:,.2f}", delta_color="inverse")
+    with m4:
+        st.metric("Despesas", f"- R$ {total_despesas:,.2f}", delta_color="inverse")
+
+    with m5:
+        st.metric("**LUCRO REAL**", f"R$ {lucro_final:,.2f}", delta_color="normal")
 
     st.divider()
+
+    # Informações do período
     st.caption(f"📅 Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}")
-    st.info(f"Vendas no período: **{len(df_v)}** | Despesas no período: **{len(df_d)}**")
+    st.info(f"**Vendas:** {len(df_v)}   |   **Despesas:** {len(df_d)}")
 
     st.divider()
 
@@ -277,7 +287,7 @@ elif menu == "📊 Dashboard":
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "Relatório Financeiro - PhotoGestão Pro", ln=True, align='C')
+        pdf.cell(200, 10, "Relatório Financeiro - Foto Amancio", ln=True, align='C')
         pdf.cell(200, 10, f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}", 
                 ln=True, align='C')
         pdf.ln(15)
