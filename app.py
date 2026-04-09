@@ -377,90 +377,109 @@ elif menu == "📜 Histórico":
         conn = conectar()
 
         if st.session_state.edit_tipo == "vendas":
-            df_edit = pd.read_sql(f"SELECT * FROM vendas WHERE id = {st.session_state.edit_id}", conn).iloc[0]
+            # Busca segura com verificação
+            df_edit_query = pd.read_sql(f"SELECT * FROM vendas WHERE id = {st.session_state.edit_id}", conn)
             
-            with st.form("edit_venda"):
-                novo_produto = st.text_input("Produto", value=df_edit['produto'])
-                
-                # Extrai quantidade atual da observação
-                qtd_atual = 1
-                if "Qtd:" in str(df_edit['obs']):
-                    try:
-                        qtd_atual = int(df_edit['obs'].split("Qtd:")[1].split("|")[0].strip())
-                    except:
-                        qtd_atual = 1
-                
-                nova_qtd = st.number_input("Quantidade", min_value=1, value=qtd_atual, step=1)
-                
-                novo_valor_bruto = st.number_input("Valor Bruto Total R$", 
-                                                 value=float(df_edit['valor_bruto']), step=0.01)
-                novo_desconto = st.number_input("Desconto R$", 
-                                              value=float(df_edit['desconto']), step=0.01)
-                
-                metodos = pd.read_sql("SELECT metodo FROM taxas", conn)['metodo'].tolist()
-                idx = metodos.index(df_edit['metodo_pgto']) if df_edit['metodo_pgto'] in metodos else 0
-                novo_metodo = st.selectbox("Forma de Pagamento", metodos, index=idx)
-                
-                novo_obs = st.text_area("Observação", value=df_edit['obs'])
-                
-                col_save, col_cancel = st.columns(2)
-                if col_save.form_submit_button("💾 Salvar Alterações", type="primary"):
-                    taxa_nova = pd.read_sql("SELECT valor_taxa FROM taxas WHERE metodo = ?", 
-                                          conn, params=(novo_metodo,)).iloc[0]['valor_taxa']
-                    
-                    # Atualiza observação com nova quantidade
-                    obs_final = novo_obs
-                    if "Qtd:" in novo_obs:
-                        obs_final = novo_obs.replace(f"Qtd: {qtd_atual}", f"Qtd: {nova_qtd}")
-                    else:
-                        obs_final = f"Qtd: {nova_qtd} | {novo_obs}"
-                    
-                    conn.execute("""UPDATE vendas SET 
-                                    produto=?, valor_bruto=?, desconto=?, 
-                                    metodo_pgto=?, taxa_momento=?, obs=? 
-                                    WHERE id=?""",
-                                 (novo_produto, novo_valor_bruto, novo_desconto,
-                                  novo_metodo, taxa_nova, obs_final, st.session_state.edit_id))
-                    conn.commit()
-                    st.success("✅ Venda atualizada com sucesso!")
+            if df_edit_query.empty:
+                st.error("❌ Registro não encontrado. Pode ter sido excluído.")
+                if st.button("Fechar"):
                     st.session_state.edit_id = None
                     st.session_state.edit_tipo = None
                     st.rerun()
+                conn.close()
+            else:
+                df_edit = df_edit_query.iloc[0]
                 
-                if col_cancel.form_submit_button("❌ Cancelar"):
-                    st.session_state.edit_id = None
-                    st.session_state.edit_tipo = None
-                    st.rerun()
+                with st.form("edit_venda"):
+                    novo_produto = st.text_input("Produto", value=df_edit['produto'])
+                    
+                    # Extrai quantidade atual da observação
+                    qtd_atual = 1
+                    if "Qtd:" in str(df_edit['obs']):
+                        try:
+                            qtd_atual = int(df_edit['obs'].split("Qtd:")[1].split("|")[0].strip())
+                        except:
+                            qtd_atual = 1
+                    
+                    nova_qtd = st.number_input("Quantidade", min_value=1, value=qtd_atual, step=1)
+                    
+                    novo_valor_bruto = st.number_input("Valor Bruto Total R$", 
+                                                     value=float(df_edit['valor_bruto']), step=0.01)
+                    novo_desconto = st.number_input("Desconto R$", 
+                                                  value=float(df_edit['desconto']), step=0.01)
+                    
+                    metodos = pd.read_sql("SELECT metodo FROM taxas", conn)['metodo'].tolist()
+                    idx = metodos.index(df_edit['metodo_pgto']) if df_edit['metodo_pgto'] in metodos else 0
+                    novo_metodo = st.selectbox("Forma de Pagamento", metodos, index=idx)
+                    
+                    novo_obs = st.text_area("Observação", value=df_edit['obs'])
+                    
+                    col_save, col_cancel = st.columns(2)
+                    if col_save.form_submit_button("💾 Salvar Alterações", type="primary"):
+                        taxa_nova = pd.read_sql("SELECT valor_taxa FROM taxas WHERE metodo = ?", 
+                                              conn, params=(novo_metodo,)).iloc[0]['valor_taxa']
+                        
+                        obs_final = novo_obs
+                        if "Qtd:" in novo_obs:
+                            obs_final = novo_obs.replace(f"Qtd: {qtd_atual}", f"Qtd: {nova_qtd}")
+                        else:
+                            obs_final = f"Qtd: {nova_qtd} | {novo_obs}"
+                        
+                        conn.execute("""UPDATE vendas SET 
+                                        produto=?, valor_bruto=?, desconto=?, 
+                                        metodo_pgto=?, taxa_momento=?, obs=? 
+                                        WHERE id=?""",
+                                     (novo_produto, novo_valor_bruto, novo_desconto,
+                                      novo_metodo, taxa_nova, obs_final, st.session_state.edit_id))
+                        conn.commit()
+                        st.success("✅ Venda atualizada com sucesso!")
+                        st.session_state.edit_id = None
+                        st.session_state.edit_tipo = None
+                        st.rerun()
+                    
+                    if col_cancel.form_submit_button("❌ Cancelar"):
+                        st.session_state.edit_id = None
+                        st.session_state.edit_tipo = None
+                        st.rerun()
 
         else:  # === EDIÇÃO DE DESPESA ===
-            df_edit = pd.read_sql(f"SELECT * FROM despesas WHERE id = {st.session_state.edit_id}", conn).iloc[0]
+            df_edit_query = pd.read_sql(f"SELECT * FROM despesas WHERE id = {st.session_state.edit_id}", conn)
             
-            with st.form("edit_despesa"):
-                novo_desc = st.text_input("Descrição", value=df_edit['descricao'])
-                novo_valor = st.number_input("Valor R$", value=float(df_edit['valor']), step=0.01)
-                
-                categorias = pd.read_sql("SELECT nome FROM categorias_desp", conn)['nome'].tolist()
-                idx_cat = categorias.index(df_edit['categoria']) if df_edit['categoria'] in categorias else 0
-                novo_cat = st.selectbox("Categoria", categorias, index=idx_cat)
-                
-                novo_data = st.text_input("Data", value=df_edit['data'])
-                
-                col_save, col_cancel = st.columns(2)
-                if col_save.form_submit_button("💾 Salvar Alterações", type="primary"):
-                    conn.execute("""UPDATE despesas SET 
-                                    descricao=?, valor=?, categoria=?, data=? 
-                                    WHERE id=?""",
-                                 (novo_desc, novo_valor, novo_cat, novo_data, st.session_state.edit_id))
-                    conn.commit()
-                    st.success("✅ Despesa atualizada com sucesso!")
+            if df_edit_query.empty:
+                st.error("❌ Registro não encontrado.")
+                if st.button("Fechar"):
                     st.session_state.edit_id = None
                     st.session_state.edit_tipo = None
                     st.rerun()
+            else:
+                df_edit = df_edit_query.iloc[0]
                 
-                if col_cancel.form_submit_button("❌ Cancelar"):
-                    st.session_state.edit_id = None
-                    st.session_state.edit_tipo = None
-                    st.rerun()
+                with st.form("edit_despesa"):
+                    novo_desc = st.text_input("Descrição", value=df_edit['descricao'])
+                    novo_valor = st.number_input("Valor R$", value=float(df_edit['valor']), step=0.01)
+                    
+                    categorias = pd.read_sql("SELECT nome FROM categorias_desp", conn)['nome'].tolist()
+                    idx_cat = categorias.index(df_edit['categoria']) if df_edit['categoria'] in categorias else 0
+                    novo_cat = st.selectbox("Categoria", categorias, index=idx_cat)
+                    
+                    novo_data = st.text_input("Data", value=df_edit['data'])
+                    
+                    col_save, col_cancel = st.columns(2)
+                    if col_save.form_submit_button("💾 Salvar Alterações", type="primary"):
+                        conn.execute("""UPDATE despesas SET 
+                                        descricao=?, valor=?, categoria=?, data=? 
+                                        WHERE id=?""",
+                                     (novo_desc, novo_valor, novo_cat, novo_data, st.session_state.edit_id))
+                        conn.commit()
+                        st.success("✅ Despesa atualizada com sucesso!")
+                        st.session_state.edit_id = None
+                        st.session_state.edit_tipo = None
+                        st.rerun()
+                    
+                    if col_cancel.form_submit_button("❌ Cancelar"):
+                        st.session_state.edit_id = None
+                        st.session_state.edit_tipo = None
+                        st.rerun()
 
         conn.close()
 
