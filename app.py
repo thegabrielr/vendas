@@ -475,23 +475,22 @@ elif menu == "📦 Cadastros":
         st.session_state.edit_item = None
         st.session_state.edit_tipo = None
 
-    # ======================= 1. PRODUTOS =======================
+        # ======================= 1. PRODUTOS =======================
     with tab1:
         st.subheader("🛍️ Cadastro de Produtos")
         
-                with st.form("novo_produto", clear_on_submit=True):
+        with st.form("novo_produto", clear_on_submit=True):
             col_nome, col_preco = st.columns([3, 1])
             nome_prod = col_nome.text_input("Nome do Produto", placeholder="Ex: Pacote 20 fotos 15x21")
             preco_prod = col_preco.number_input("Preço de Venda R$", 
                                               min_value=0.0, 
-                                              value=0.0,          # ← Mudado para 0.0
+                                              value=0.0, 
                                               step=0.01)
             
             if st.form_submit_button("➕ Cadastrar Produto", use_container_width=True, type="primary"):
                 if not nome_prod.strip():
                     st.error("❌ Nome do produto é obrigatório.")
                 else:
-                    # Permite preço zero sem erro
                     conn = conectar()
                     conn.execute("INSERT INTO produtos (nome, preco) VALUES (?,?)", 
                                 (nome_prod.strip(), preco_prod))
