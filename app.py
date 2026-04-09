@@ -626,12 +626,8 @@ elif menu == "📦 Cadastros":
         conn.close()
     
 
-
 # ===================================================================
-# NOVA ABA: DESPESAS (Adicionar + Histórico)
-# ===================================================================
-# ===================================================================
-# NOVA ABA: DESPESAS (Descrição agora é opcional)
+# DESPESAS - Versão Melhorada (Valor limpa + Calendário)
 # ===================================================================
 elif menu == "💰 Despesas":
     st.header("💰 Lançamento de Despesas")
@@ -641,37 +637,50 @@ elif menu == "💰 Despesas":
     conn.close()
 
     # ======================= FORMULÁRIO DE NOVA DESPESA =======================
-    with st.form("nova_despesa"):
+    with st.form("nova_despesa", clear_on_submit=True):   # ← Isso limpa os campos após enviar
         st.subheader("Nova Despesa")
         
         col1, col2 = st.columns([2, 1])
         
-        # Descrição agora é OPCIONAL
         descricao = col1.text_input("Descrição da Despesa (opcional)", 
                                   placeholder="Ex: Conta de internet - março")
         
-        valor = col2.number_input("Valor R$", min_value=0.0, value=None, placeholder="0,00", step=0.01)
+        valor = col2.number_input("Valor R$", 
+                                min_value=0.0, 
+                                value=None, 
+                                placeholder="0,00", 
+                                step=0.01,
+                                key="valor_despesa")   # chave para ajudar na limpeza
         
         categoria = st.selectbox("Categoria *", categorias if categorias else ["Outros"])
         
-        data_desp = st.text_input("Data", value=datetime.now().strftime("%d/%m/%Y %H:%M"))
+        # Calendário bonito no lugar do campo de texto
+        data_selecionada = st.date_input(
+            "Data da Despesa", 
+            value=datetime.now().date(),
+            format="DD/MM/YYYY"
+        )
+        
+        # Converte para o formato que você usa no banco
+        data_desp = data_selecionada.strftime("%d/%m/%Y %H:%M")
         
         if st.form_submit_button("💾 Lançar Despesa", type="primary", use_container_width=True):
             if valor is None or valor <= 0:
                 st.error("❌ O valor deve ser maior que zero.")
             else:
-                # Se não preencher descrição, usamos o nome da categoria
                 desc_final = descricao.strip() if descricao and descricao.strip() else categoria
                 
                 conn = conectar()
-                mes_ano = datetime.now().strftime("%m/%Y")
+                mes_ano = data_selecionada.strftime("%m/%Y")
                 conn.execute("""INSERT INTO despesas 
                                 (descricao, valor, categoria, data, mes_ano) 
                                 VALUES (?,?,?,?,?)""", 
                              (desc_final, valor, categoria, data_desp, mes_ano))
                 conn.commit()
                 conn.close()
+                
                 st.success("✅ Despesa lançada com sucesso!")
+                # O clear_on_submit já vai limpar os campos automaticamente
                 st.rerun()
 
     st.divider()
@@ -689,7 +698,7 @@ elif menu == "💰 Despesas":
             with st.container(border=True):
                 col_a, col_b, col_c = st.columns([3.5, 1.5, 1])
                 col_a.write(f"**{r['descricao']}**")
-                col_a.caption(f"{r['data']} | Categoria: {r['categoria']}")
+                col_a.caption(f"{r['data']} | {r['categoria']}")
                 col_b.metric("Valor", f"R$ {r['valor']:.2f}")
                 
                 if col_c.button("🗑️", key=f"del_desp_{r['id']}"):
