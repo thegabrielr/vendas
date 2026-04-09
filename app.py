@@ -630,6 +630,9 @@ elif menu == "📦 Cadastros":
 # ===================================================================
 # NOVA ABA: DESPESAS (Adicionar + Histórico)
 # ===================================================================
+# ===================================================================
+# NOVA ABA: DESPESAS (Descrição agora é opcional)
+# ===================================================================
 elif menu == "💰 Despesas":
     st.header("💰 Lançamento de Despesas")
 
@@ -642,25 +645,30 @@ elif menu == "💰 Despesas":
         st.subheader("Nova Despesa")
         
         col1, col2 = st.columns([2, 1])
-        descricao = col1.text_input("Descrição da Despesa", placeholder="Ex: Aluguel da loja, Conta de luz...")
+        
+        # Descrição agora é OPCIONAL
+        descricao = col1.text_input("Descrição da Despesa (opcional)", 
+                                  placeholder="Ex: Conta de internet - março")
+        
         valor = col2.number_input("Valor R$", min_value=0.0, value=None, placeholder="0,00", step=0.01)
         
-        categoria = st.selectbox("Categoria", categorias if categorias else ["Outros"])
+        categoria = st.selectbox("Categoria *", categorias if categorias else ["Outros"])
         
         data_desp = st.text_input("Data", value=datetime.now().strftime("%d/%m/%Y %H:%M"))
         
         if st.form_submit_button("💾 Lançar Despesa", type="primary", use_container_width=True):
-            if not descricao.strip():
-                st.error("❌ Descrição é obrigatória.")
-            elif valor is None or valor <= 0:
-                st.error("❌ Valor deve ser maior que zero.")
+            if valor is None or valor <= 0:
+                st.error("❌ O valor deve ser maior que zero.")
             else:
+                # Se não preencher descrição, usamos o nome da categoria
+                desc_final = descricao.strip() if descricao and descricao.strip() else categoria
+                
                 conn = conectar()
                 mes_ano = datetime.now().strftime("%m/%Y")
                 conn.execute("""INSERT INTO despesas 
                                 (descricao, valor, categoria, data, mes_ano) 
                                 VALUES (?,?,?,?,?)""", 
-                             (descricao.strip(), valor, categoria, data_desp, mes_ano))
+                             (desc_final, valor, categoria, data_desp, mes_ano))
                 conn.commit()
                 conn.close()
                 st.success("✅ Despesa lançada com sucesso!")
@@ -681,7 +689,7 @@ elif menu == "💰 Despesas":
             with st.container(border=True):
                 col_a, col_b, col_c = st.columns([3.5, 1.5, 1])
                 col_a.write(f"**{r['descricao']}**")
-                col_a.caption(f"{r['data']} | {r['categoria']}")
+                col_a.caption(f"{r['data']} | Categoria: {r['categoria']}")
                 col_b.metric("Valor", f"R$ {r['valor']:.2f}")
                 
                 if col_c.button("🗑️", key=f"del_desp_{r['id']}"):
