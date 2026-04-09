@@ -814,3 +814,63 @@ elif menu == "💳 Taxas":
                         st.rerun()
                 else:
                     col_excluir.button("🔒 Padrão", disabled=True)
+
+# ===================================================================
+# 7. BACKUP COM ONEDRIVE
+# ===================================================================
+elif menu == "🔄 Backup OneDrive":
+    st.header("🔄 Backup e Restauração - OneDrive")
+
+    # Defina aqui o caminho da pasta sincronizada do OneDrive
+    ONEDRIVE_PATH = os.path.join(os.path.expanduser("~"), "OneDrive", "PhotoGestao_Backups")
+    os.makedirs(ONEDRIVE_PATH, exist_ok=True)
+
+    st.info(f"Pasta do OneDrive configurada em:\n`{ONEDRIVE_PATH}`")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("📤 Fazer Backup (Enviar para OneDrive)")
+        backup_name = f"dados_loja_backup_{datetime.now().strftime('%d_%m_%Y_%H%M')}.db"
+        
+        if st.button("💾 Criar Backup no OneDrive", type="primary", use_container_width=True):
+            try:
+                import shutil
+                destino = os.path.join(ONEDRIVE_PATH, backup_name)
+                shutil.copy2(CAMINHO_BANCO, destino)
+                st.success(f"✅ Backup criado com sucesso!\nArquivo: **{backup_name}**")
+                st.info("O OneDrive vai sincronizar automaticamente.")
+            except Exception as e:
+                st.error(f"Erro ao criar backup: {e}")
+
+    with col2:
+        st.subheader("📥 Restaurar Backup Antigo")
+        st.warning("⚠️ Cuidado: Isso vai substituir o banco atual!")
+
+        # Lista os backups disponíveis na pasta do OneDrive
+        if os.path.exists(ONEDRIVE_PATH):
+            backups = [f for f in os.listdir(ONEDRIVE_PATH) if f.endswith('.db')]
+            backups.sort(reverse=True)
+            
+            if backups:
+                arquivo_selecionado = st.selectbox("Escolha o backup para restaurar:", backups)
+                
+                if st.button("🔄 Restaurar este Backup", type="primary", use_container_width=True):
+                    try:
+                        # Faz backup de segurança do atual
+                        shutil.copy2(CAMINHO_BANCO, CAMINHO_BANCO + ".backup")
+                        
+                        origem = os.path.join(ONEDRIVE_PATH, arquivo_selecionado)
+                        shutil.copy2(origem, CAMINHO_BANCO)
+                        
+                        st.success("✅ Banco restaurado com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro na restauração: {e}")
+            else:
+                st.info("Nenhum backup encontrado na pasta do OneDrive.")
+        else:
+            st.error("Pasta do OneDrive não encontrada. Verifique o caminho.")
+
+    st.divider()
+    st.caption("Dica: Mantenha a pasta 'PhotoGestao_Backups' sincronizada no OneDrive.")
