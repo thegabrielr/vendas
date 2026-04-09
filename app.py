@@ -864,61 +864,69 @@ elif menu == "💳 Taxas":
                     col_excluir.button("🔒 Padrão", disabled=True)
 
 # ===================================================================
-# 7. BACKUP COM ONEDRIVE
+# 7. BACKUP LOCAL (Pasta que você sincroniza com OneDrive)
 # ===================================================================
-elif menu == "🔄 Backup OneDrive":
-    st.header("🔄 Backup e Restauração - OneDrive")
+elif menu == "🔄 Backup":
+    st.header("🔄 Backup e Restauração")
 
-    # Defina aqui o caminho da pasta sincronizada do OneDrive
-    ONEDRIVE_PATH = os.path.join(os.path.expanduser("~"), "OneDrive", "PhotoGestao_Backups")
-    os.makedirs(ONEDRIVE_PATH, exist_ok=True)
+    # === CONFIGURE AQUI O CAMINHO DA PASTA DE BACKUP ===
+    # Exemplo: uma pasta dentro do OneDrive que já sincroniza automaticamente
+    BACKUP_FOLDER = os.path.join(os.path.expanduser("~"), "OneDrive", "PhotoGestao_Backups")
+    # BACKUP_FOLDER = r"C:\Users\gabri\Backups\PhotoGestao"   # ← Você pode mudar para o caminho que quiser
 
-    st.info(f"Pasta do OneDrive configurada em:\n`{ONEDRIVE_PATH}`")
+    os.makedirs(BACKUP_FOLDER, exist_ok=True)
+
+    st.info(f"📁 Backups serão salvos em:\n`{BACKUP_FOLDER}`")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("📤 Fazer Backup (Enviar para OneDrive)")
-        backup_name = f"dados_loja_backup_{datetime.now().strftime('%d_%m_%Y_%H%M')}.db"
+        st.subheader("📤 Criar Novo Backup")
         
-        if st.button("💾 Criar Backup no OneDrive", type="primary", use_container_width=True):
+        if st.button("💾 Criar Backup Agora", type="primary", use_container_width=True):
             try:
                 import shutil
-                destino = os.path.join(ONEDRIVE_PATH, backup_name)
+                timestamp = datetime.now().strftime("%d_%m_%Y_%H%M")
+                backup_name = f"dados_loja_backup_{timestamp}.db"
+                
+                destino = os.path.join(BACKUP_FOLDER, backup_name)
                 shutil.copy2(CAMINHO_BANCO, destino)
-                st.success(f"✅ Backup criado com sucesso!\nArquivo: **{backup_name}**")
-                st.info("O OneDrive vai sincronizar automaticamente.")
+                
+                st.success("✅ Backup criado com sucesso!")
+                st.info(f"Arquivo salvo como:\n**{backup_name}**")
             except Exception as e:
                 st.error(f"Erro ao criar backup: {e}")
 
     with col2:
-        st.subheader("📥 Restaurar Backup Antigo")
-        st.warning("⚠️ Cuidado: Isso vai substituir o banco atual!")
+        st.subheader("📥 Restaurar Backup")
+        st.warning("⚠️ Isso vai substituir completamente o banco atual!")
 
-        # Lista os backups disponíveis na pasta do OneDrive
-        if os.path.exists(ONEDRIVE_PATH):
-            backups = [f for f in os.listdir(ONEDRIVE_PATH) if f.endswith('.db')]
+        # Lista os backups (mais recentes primeiro)
+        if os.path.exists(BACKUP_FOLDER):
+            backups = [f for f in os.listdir(BACKUP_FOLDER) if f.endswith('.db')]
             backups.sort(reverse=True)
-            
+
             if backups:
-                arquivo_selecionado = st.selectbox("Escolha o backup para restaurar:", backups)
+                arquivo_selecionado = st.selectbox("Selecione o backup para restaurar:", backups)
                 
                 if st.button("🔄 Restaurar este Backup", type="primary", use_container_width=True):
                     try:
-                        # Faz backup de segurança do atual
-                        shutil.copy2(CAMINHO_BANCO, CAMINHO_BANCO + ".backup")
+                        # Cria backup de segurança antes
+                        safety_name = f"dados_loja_ANTES_RESTORE_{datetime.now().strftime('%d%m%Y_%H%M')}.db"
+                        shutil.copy2(CAMINHO_BANCO, os.path.join(BACKUP_FOLDER, safety_name))
                         
-                        origem = os.path.join(ONEDRIVE_PATH, arquivo_selecionado)
+                        # Restaura o escolhido
+                        origem = os.path.join(BACKUP_FOLDER, arquivo_selecionado)
                         shutil.copy2(origem, CAMINHO_BANCO)
                         
                         st.success("✅ Banco restaurado com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro na restauração: {e}")
+                        st.error(f"Erro durante a restauração: {e}")
             else:
-                st.info("Nenhum backup encontrado na pasta do OneDrive.")
+                st.info("Ainda não há backups nesta pasta.")
         else:
-            st.error("Pasta do OneDrive não encontrada. Verifique o caminho.")
+            st.error("Pasta de backup não encontrada. Verifique o caminho.")
 
     st.divider()
-    st.caption("Dica: Mantenha a pasta 'PhotoGestao_Backups' sincronizada no OneDrive.")
+    st.caption("💡 Dica: Coloque esta pasta dentro do OneDrive para ter backup automático na nuvem.")
