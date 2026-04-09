@@ -22,6 +22,55 @@ BACKUP_FOLDER.mkdir(exist_ok=True, parents=True)
 # FUNÇÕES DE BANCO DE DADOS
 # ===================================================================
 
+def limpar_todos_os_dados():
+    """Limpa todos os dados das tabelas (exceto estrutura) - protegido por senha"""
+    st.subheader("🗑️ Limpeza Total do Banco de Dados")
+    st.warning("⚠️ Esta ação é irreversível! Todos os dados serão apagados.")
+
+    senha = st.text_input("Digite a senha para confirmar a limpeza total:", 
+                         type="password", 
+                         placeholder="Digite a senha")
+
+    if st.button("🗑️ APAGAR TODOS OS DADOS", type="primary"):
+        if not senha:
+            st.error("❌ Você deve digitar a senha.")
+            return
+        
+        # ==================== SENHA DEFINIDA AQUI ====================
+        SENHA_CORRETA = "limpar123"   # ← MUDE ESTA SENHA PARA ALGO SEGURO!
+
+        if senha == SENHA_CORRETA:
+            try:
+                conn = conectar()
+                c = conn.cursor()
+                
+                with st.spinner("Apagando todos os dados..."):
+                    # Limpa os dados (mantém a estrutura das tabelas)
+                    c.execute("DELETE FROM vendas")
+                    c.execute("DELETE FROM despesas")
+                    c.execute("DELETE FROM carrinho_temp")
+                    c.execute("DELETE FROM anotacoes")
+                    c.execute("DELETE FROM produtos")
+                    c.execute("DELETE FROM categorias_desp")
+                    
+                    # Opcional: também limpar a flag de categorias iniciais
+                    c.execute("DELETE FROM system_flags WHERE flag_name = 'initial_categories_created'")
+                    
+                    conn.commit()
+                    conn.close()
+                
+                st.success("✅ Todos os dados foram apagados com sucesso!")
+                st.info("O app será reiniciado em 2 segundos...")
+                import time
+                time.sleep(2)
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Erro durante a limpeza: {e}")
+        else:
+            st.error("❌ Senha incorreta! Operação cancelada.")
+
+
 def conectar():
     """Conecta ao banco de dados SQLite com settings seguros"""
     conn = sqlite3.connect(str(CAMINHO_BANCO), check_same_thread=False)
@@ -66,82 +115,46 @@ def fazer_backup_automatico(tipo=""):
 # ===================================================================
 
 def criar_tabelas():
-    """Cria todas as tabelas do banco se não existirem"""
     conn = conectar()
     c = conn.cursor()
     
-    # Tabela de produtos
-    c.execute('''CREATE TABLE IF NOT EXISTS produtos 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  nome TEXT UNIQUE, 
-                  preco REAL)''')
+    # ==================== CRIAÇÃO DAS TABELAS ====================
+    c.execute('CREATE TABLE IF NOT EXISTS produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, preco REAL)')
     
-    # Tabela de taxas de pagamento
-    c.execute('''CREATE TABLE IF NOT EXISTS taxas 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  metodo TEXT UNIQUE,
-                  valor_taxa REAL,
-                  assume_vendedor INTEGER DEFAULT 1,
-                  descricao TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS taxas (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 metodo TEXT UNIQUE,
+                 valor_taxa REAL,
+                 assume_vendedor INTEGER DEFAULT 1,
+                 descricao TEXT)''')
     
-    # Tabela de vendas
     c.execute('''CREATE TABLE IF NOT EXISTS vendas
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  produto TEXT, 
-                  valor_bruto REAL,
-                  desconto REAL, 
-                  metodo_pgto TEXT, 
-                  taxa_momento REAL, 
-                  data TEXT, 
-                  mes_ano TEXT, 
-                  obs TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, produto TEXT, valor_bruto REAL,
+                  desconto REAL, metodo_pgto TEXT, taxa_momento REAL, data TEXT, mes_ano TEXT, obs TEXT)''')
     
-    # Tabela de despesas
     c.execute('''CREATE TABLE IF NOT EXISTS despesas
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  descricao TEXT, 
-                  valor REAL,
-                  categoria TEXT, 
-                  data TEXT, 
-                  mes_ano TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL,
+                  categoria TEXT, data TEXT, mes_ano TEXT)''')
     
-    # Tabela de categorias de despesas
-    c.execute('''CREATE TABLE IF NOT EXISTS categorias_desp 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  nome TEXT UNIQUE)''')
+    c.execute('CREATE TABLE IF NOT EXISTS categorias_desp (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT)')
     
-    # Tabela de anotações/tarefas
     c.execute('''CREATE TABLE IF NOT EXISTS anotacoes
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  titulo TEXT, 
-                  conteudo TEXT,
-                  data TEXT, 
-                  prioridade TEXT DEFAULT "Média", 
-                  concluido INTEGER DEFAULT 0)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, conteudo TEXT,
+                  data TEXT, prioridade TEXT DEFAULT "Média", concluido INTEGER DEFAULT 0)''')
     
-    # Tabela de carrinho temporário
     c.execute('''CREATE TABLE IF NOT EXISTS carrinho_temp
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  produto TEXT,
-                  valor_bruto REAL, 
-                  desconto REAL DEFAULT 0, 
-                  valor REAL, 
-                  obs TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, produto TEXT,
+                  valor_bruto REAL, desconto REAL DEFAULT 0, valor REAL, obs TEXT)''')
 
-    # Dados iniciais - Dinheiro sempre existe
-    try:
-        c.execute("INSERT INTO taxas (metodo, valor_taxa, assume_vendedor, descricao) VALUES (?,?,?,?)", 
+    # ==================== DADOS INICIAIS ====================
+    # Apenas o método "Dinheiro"
+    if c.execute("SELECT COUNT(*) FROM taxas WHERE metodo = 'Dinheiro'").fetchone()[0] == 0:
+        c.execute("""INSERT INTO taxas (metodo, valor_taxa, assume_vendedor, descricao)
+                     VALUES (?,?,?,?)""", 
                   ('Dinheiro', 0.0, 1, 'Pagamento em espécie - sem taxa'))
-    except sqlite3.IntegrityError:
-        pass  # Já existe
 
-    # Categorias padrão
-    categorias_padrao = [('Insumos',), ('Fixo',), ('Marketing',), ('Outros',), ('Aluguel',), ('Energia',)]
-    for cat in categorias_padrao:
-        try:
-            c.execute("INSERT INTO categorias_desp (nome) VALUES (?)", cat)
-        except sqlite3.IntegrityError:
-            pass  # Já existe
+    # NÃO criamos mais categorias padrão automaticamente
+    # A tabela começa vazia, como você pediu.
 
     conn.commit()
     conn.close()
@@ -218,7 +231,8 @@ menu = st.sidebar.radio("Navegação:", [
     "📦 Cadastros",
     "📝 Notas", 
     "💳 Taxas", 
-    "🔄 Backup"
+    "🔄 Backup",
+    "🗑️ Limpeza Total"   # ← Nova opção
 ])
 
 st.sidebar.divider()
@@ -543,6 +557,101 @@ elif menu == "📜 Histórico":
     
     conn.close()
 
+    # ======================= FORMULÁRIO DE EDIÇÃO =======================
+    if st.session_state.edit_id is not None and st.session_state.edit_tipo is not None:
+        st.divider()
+        st.subheader("✏️ Editando Registro")
+
+        conn = conectar()
+
+        if st.session_state.edit_tipo == "vendas":
+            df_edit = pd.read_sql(
+                "SELECT * FROM vendas WHERE id = ?",
+                conn,
+                params=(st.session_state.edit_id,)
+            )
+
+            if not df_edit.empty:
+                item = df_edit.iloc[0]
+                
+                with st.form("edit_venda_form"):
+                    novo_produto = st.text_input("Produto", value=item['produto'])
+                    novo_valor_bruto = st.number_input("Valor Bruto R$", value=float(item['valor_bruto']), step=0.01)
+                    novo_desconto = st.number_input("Desconto R$", value=float(item['desconto']), step=0.01, min_value=0.0)
+                    novo_metodo = st.text_input("Método de Pagamento", value=item['metodo_pgto'])
+                    nova_taxa = st.number_input("Taxa (%)", value=float(item['taxa_momento']), step=0.01)
+                    nova_obs = st.text_input("Observação", value=item['obs'])
+                    
+                    col_save, col_cancel = st.columns(2)
+                    
+                    if col_save.form_submit_button("💾 Salvar", type="primary"):
+                        if novo_valor_bruto > 0:
+                            conn.execute(
+                                """UPDATE vendas SET 
+                                   produto=?, valor_bruto=?, desconto=?, 
+                                   metodo_pgto=?, taxa_momento=?, obs=? 
+                                   WHERE id=?""",
+                                (novo_produto, novo_valor_bruto, novo_desconto,
+                                 novo_metodo, nova_taxa, nova_obs, st.session_state.edit_id)
+                            )
+                            conn.commit()
+                            st.success("✅ Venda atualizada com sucesso!")
+                            st.session_state.edit_id = None
+                            st.session_state.edit_tipo = None
+                            st.rerun()
+                        else:
+                            st.error("Valor deve ser maior que zero!")
+                    
+                    if col_cancel.form_submit_button("❌ Cancelar"):
+                        st.session_state.edit_id = None
+                        st.session_state.edit_tipo = None
+                        st.rerun()
+            else:
+                st.error("Venda não encontrada!")
+
+        elif st.session_state.edit_tipo == "despesas":
+            df_edit = pd.read_sql(
+                "SELECT * FROM despesas WHERE id = ?",
+                conn,
+                params=(st.session_state.edit_id,)
+            )
+
+            if not df_edit.empty:
+                item = df_edit.iloc[0]
+                
+                with st.form("edit_despesa_hist_form"):
+                    novo_desc = st.text_input("Descrição", value=item['descricao'])
+                    novo_valor = st.number_input("Valor R$", value=float(item['valor']), step=0.01)
+                    novo_cat = st.text_input("Categoria", value=item['categoria'])
+                    nova_data = st.text_input("Data (DD/MM/YYYY HH:MM)", value=item['data'])
+                    
+                    col_save, col_cancel = st.columns(2)
+                    
+                    if col_save.form_submit_button("💾 Salvar", type="primary"):
+                        if novo_valor > 0:
+                            conn.execute(
+                                """UPDATE despesas SET 
+                                   descricao=?, valor=?, categoria=?, data=? 
+                                   WHERE id=?""",
+                                (novo_desc, novo_valor, novo_cat, nova_data, st.session_state.edit_id)
+                            )
+                            conn.commit()
+                            st.success("✅ Despesa atualizada com sucesso!")
+                            st.session_state.edit_id = None
+                            st.session_state.edit_tipo = None
+                            st.rerun()
+                        else:
+                            st.error("Valor deve ser maior que zero!")
+                    
+                    if col_cancel.form_submit_button("❌ Cancelar"):
+                        st.session_state.edit_id = None
+                        st.session_state.edit_tipo = None
+                        st.rerun()
+            else:
+                st.error("Despesa não encontrada!")
+
+        conn.close()
+
 # ===================================================================
 # 4. CADASTROS
 # ===================================================================
@@ -615,25 +724,34 @@ elif menu == "📦 Cadastros":
                         st.rerun()
 
     # ======================= CATEGORIAS =======================
+    # ======================= 2. CATEGORIAS =======================
     with tab2:
         st.subheader("📂 Categorias de Despesa")
         
         with st.form("nova_categoria", clear_on_submit=True):
-            nova_cat = st.text_input("Nome da Categoria", placeholder="Ex: Aluguel, Energia...")
+            nova_cat = st.text_input("Nome da Categoria", placeholder="Ex: Aluguel, Energia, Marketing...")
+            
             if st.form_submit_button("➕ Adicionar Categoria", use_container_width=True, type="primary"):
-                if validar_texto(nova_cat, min_length=3, max_length=100):
-                    conn = conectar()
-                    try:
-                        conn.execute("INSERT INTO categorias_desp (nome) VALUES (?)", (nova_cat.strip(),))
-                        conn.commit()
-                        st.success("✅ Categoria adicionada!")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("❌ Categoria com este nome já existe!")
-                    finally:
-                        conn.close()
+                # Validação: deve ter pelo menos uma letra (não pode ser vazio ou só espaços)
+                if not nova_cat or not nova_cat.strip():
+                    st.error("❌ O nome da categoria não pode estar vazio.")
+                elif len(nova_cat.strip()) < 1:
+                    st.error("❌ A categoria deve ter pelo menos uma letra.")
                 else:
-                    st.error("Nome deve ter 3-100 caracteres.")
+                    nome_limpo = nova_cat.strip()
+                    conn = conectar()
+                    # Verifica se a categoria já existe (evita duplicatas)
+                    existe = conn.execute("SELECT COUNT(*) FROM categorias_desp WHERE nome = ?", 
+                                        (nome_limpo,)).fetchone()[0]
+                    
+                    if existe > 0:
+                        st.error(f"❌ A categoria '{nome_limpo}' já existe.")
+                    else:
+                        conn.execute("INSERT INTO categorias_desp (nome) VALUES (?)", (nome_limpo,))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Categoria '{nome_limpo}' adicionada com sucesso!")
+                        st.rerun()
 
         st.divider()
         st.subheader("📋 Categorias Cadastradas")
@@ -643,99 +761,30 @@ elif menu == "📦 Cadastros":
         conn.close()
 
         if df_cat.empty:
-            st.info("Nenhuma categoria cadastrada.")
+            st.info("Nenhuma categoria cadastrada ainda.")
         else:
             for _, row in df_cat.iterrows():
                 with st.container(border=True):
                     col1, col2, col3 = st.columns([5, 1, 1])
                     col1.write(f"**{row['nome']}**")
                     
-                    if col2.button("✏️", key=f"ec_{row['id']}"):
+                    if col2.button("✏️ Editar", key=f"ec_{row['id']}"):
                         st.session_state.edit_item = row['id']
                         st.session_state.edit_tipo = "categoria"
                         st.rerun()
                     
-                    if col3.button("🗑️", key=f"dc_{row['id']}"):
+                    if col3.button("🗑️ Excluir", key=f"dc_{row['id']}"):
                         conn = conectar()
-                        uso = conn.execute(
-                            "SELECT COUNT(*) FROM despesas WHERE categoria=?", 
-                            (row['nome'],)
-                        ).fetchone()[0]
-                        
+                        uso = conn.execute("SELECT COUNT(*) FROM despesas WHERE categoria=?", 
+                                         (row['nome'],)).fetchone()[0]
                         if uso > 0:
-                            st.error(f"❌ Não é possível excluir. Usada em {uso} despesa(s).")
+                            st.error(f"Não é possível excluir. Usada em {uso} despesa(s).")
                         else:
                             conn.execute("DELETE FROM categorias_desp WHERE id=?", (row['id'],))
                             conn.commit()
                             st.success("Categoria excluída!")
-                            st.rerun()
                         conn.close()
-
-    # ======================= EDIÇÃO =======================
-    if st.session_state.edit_item is not None:
-        st.divider()
-        st.subheader("✏️ Editando Item")
-
-        conn = conectar()
-
-        if st.session_state.edit_tipo == "produto":
-            df_item = pd.read_sql(
-                "SELECT * FROM produtos WHERE id = ?", 
-                conn, 
-                params=(st.session_state.edit_item,)
-            )
-            
-            if not df_item.empty:
-                item = df_item.iloc[0]
-                with st.form("edit_produto"):
-                    novo_nome = st.text_input("Nome", value=item['nome'])
-                    novo_preco = st.number_input("Preço R$", value=float(item['preco']), step=0.01)
-                    
-                    if st.form_submit_button("💾 Salvar", type="primary"):
-                        if validar_texto(novo_nome, min_length=3):
-                            conn.execute(
-                                "UPDATE produtos SET nome=?, preco=? WHERE id=?", 
-                                (novo_nome.strip(), novo_preco, st.session_state.edit_item)
-                            )
-                            conn.commit()
-                            st.success("✅ Produto atualizado!")
-                            st.session_state.edit_item = None
-                            st.rerun()
-                        else:
-                            st.error("Nome inválido!")
-
-        elif st.session_state.edit_tipo == "categoria":
-            df_item = pd.read_sql(
-                "SELECT * FROM categorias_desp WHERE id = ?", 
-                conn, 
-                params=(st.session_state.edit_item,)
-            )
-            
-            if not df_item.empty:
-                item = df_item.iloc[0]
-                with st.form("edit_categoria_form"):
-                    novo_nome = st.text_input("Nome da Categoria", value=item['nome'])
-                    
-                    col_salvar, col_cancelar = st.columns(2)
-                    if col_salvar.form_submit_button("💾 Salvar", type="primary"):
-                        if validar_texto(novo_nome, min_length=3):
-                            conn.execute(
-                                "UPDATE categorias_desp SET nome=? WHERE id=?", 
-                                (novo_nome.strip(), st.session_state.edit_item)
-                            )
-                            conn.commit()
-                            st.success("✅ Categoria atualizada!")
-                            st.session_state.edit_item = None
-                            st.rerun()
-                        else:
-                            st.error("Nome inválido!")
-                    
-                    if col_cancelar.form_submit_button("❌ Cancelar"):
-                        st.session_state.edit_item = None
                         st.rerun()
-
-        conn.close()
-
 # ===================================================================
 # 5. DESPESAS
 # ===================================================================
@@ -1075,3 +1124,8 @@ elif menu == "🔄 Backup":
             st.info("Nenhum backup encontrado ainda.")
     else:
         st.warning(f"Pasta de backup não encontrada: {BACKUP_FOLDER}")
+# ===================================================================
+# LIMPEZA TOTAL (Protegida por senha)
+# ===================================================================
+elif menu == "🗑️ Limpeza Total":
+    limpar_todos_os_dados()
