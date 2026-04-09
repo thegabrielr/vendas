@@ -95,7 +95,7 @@ criar_tabelas()
 migrar_banco()
 
 # --- MENU LATERAL ---
-st.sidebar.title("📸 Foto Amancio)
+st.sidebar.title("📸 Foto Amancio")
 menu = st.sidebar.radio("Navegação:", 
     ["🛒 PDV", "📊 Dashboard", "📜 Histórico", "💰 Despesas", "📦 Cadastros", "📝 Notas", "💳 Taxas"])
 
