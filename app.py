@@ -97,7 +97,8 @@ migrar_banco()
 # --- MENU LATERAL ---
 st.sidebar.title("📸 Foto Amancio")
 menu = st.sidebar.radio("Navegação:", 
-    ["🛒 PDV", "📊 Dashboard", "📜 Histórico", "💰 Despesas", "📦 Cadastros", "📝 Notas", "💳 Taxas"])
+    ["🛒 PDV", "📊 Dashboard", "📜 Histórico", "💰 Despesas", "📦 Cadastros", 
+     "📝 Notas", "💳 Taxas", "🔄 Backup OneDrive"])
 
 # ===================================================================
 # 1. PDV (FRENTE DE CAIXA) - COM CORREÇÃO DE DESCONTO
